@@ -1,133 +1,121 @@
-# Fraud Detection System
+# Fraud Detection — Model Evaluation & Streamlit Demo
 
-This project implements a machine learning-based system for detecting fraudulent financial transactions. It combines multiple datasets, applies advanced feature engineering, and trains various models to detect fraudulent transactions with high accuracy.
+A machine-learning coursework project for exploring financial transaction classification with saved models, engineered features, historical comparison results, and a Streamlit interface.
 
-## Project Structure
+**[Explore the app code](app.py) · [Evaluation script](fraud_detection.py) · [Saved metrics](results/model_comparison.csv)**
 
-```
-fraud_detection_project/
-├── Datasets/                  # Directory containing datasets
-│   ├── Fraud.csv             # Main dataset
-│   └── FraudData_sampled.csv # Sampled dataset
-├── fraud_detection.py        # Main script for preprocessing and model training
-├── app.py                    # Streamlit web application
-├── setup.py                  # Setup script to organize project structure
-├── models/                   # Directory for saved models
-│   ├── logistic_regression.pkl
-│   ├── random_forest.pkl
-│   ├── xgboost.pkl
-│   ├── lightgbm.pkl
-│   ├── scaler.pkl
-│   └── label_encoder.pkl
-├── results/                  # Directory for metrics and visualizations
-│   ├── model_comparison.csv
-│   ├── confusion_matrix_*.png
-│   └── *_comparison.png
-└── explanations/            # Directory for model explanations
-    └── shap_summary.png
+The current evaluation entry point loads existing model artifacts. Reproducible model training, SMOTE resampling, and SHAP generation are not implemented in that script.
+
+## What you can explore
+
+| Component | Current behavior |
+| --- | --- |
+| Model Comparison | Loads the saved metrics CSV and confusion-matrix images, and plots accuracy, precision, recall and F1. The UI filters out SVM. |
+| Fraud Prediction | Encodes and scales transaction inputs, then calls a loaded classifier's `predict` and `predict_proba`. Models exposing `feature_importances_` also show a feature-importance chart. |
+| Evaluation script | Combines two local CSV files, engineers features, makes a stratified 80/20 split with `random_state=42`, and evaluates saved models on the scaled test portion. |
+
+```mermaid
+flowchart LR
+    A[Transaction inputs] --> B[Encode and engineer features]
+    B --> C[Saved scaler]
+    C --> D[Saved classifier]
+    D --> E[Class and estimated probability]
+    F[Historical metrics CSV and images] --> G[Comparison dashboard]
 ```
 
-## Dataset Description
+## Historical results
 
-The project uses two datasets:
+These values come directly from the committed [model comparison CSV](results/model_comparison.csv). They are saved results, not a new evaluation or a guarantee of current performance. The CSV does not record the evaluation date, test-set size, class distribution, training versions or full experiment provenance.
 
-### Fraud.csv
-- **step**: Transaction time (hour or day)
-- **type**: Transaction type (PAYMENT, TRANSFER, CASH_OUT, DEBIT)
-- **amount**: Transaction amount
-- **nameOrig**: Origin account ID
-- **oldbalanceOrg**: Origin account balance before transaction
-- **newbalanceOrig**: Origin account balance after transaction
-- **nameDest**: Destination account ID
-- **oldbalanceDest**: Destination account balance before transaction
-- **newbalanceDest**: Destination account balance after transaction
-- **isFraud**: Target variable (1 for fraudulent transactions)
-- **isFlaggedFraud**: Flag for manually detected fraud
+| Model | Accuracy | Precision | Recall | F1 |
+| --- | ---: | ---: | ---: | ---: |
+| Logistic Regression | 99.895% | 100.00% | 19.23% | 32.26% |
+| Random Forest | 99.955% | 100.00% | 65.38% | 79.07% |
+| SVM | 99.900% | 100.00% | 23.08% | 37.50% |
+| XGBoost | 99.960% | 100.00% | 69.23% | 81.82% |
 
-### FraudData_sampled.csv
-A smaller sampled dataset with similar columns but without account ID columns.
+High accuracy alone hides missed fraud: the saved Logistic Regression row reports 99.895% accuracy alongside 19.23% recall. Compare recall, precision and F1 together, and establish the data split and error costs before choosing a model for another dataset.
 
-## Feature Engineering
+![Historical fraud-class recall comparison](results/recall_comparison.png)
 
-The project implements several engineered features to improve fraud detection:
-- **transaction_diff**: Difference between old and new origin balance
-- **dest_diff**: Difference between new and old destination balance
-- **is_zero_balance**: Flag for zero balance transactions
-- **amount_balance_ratio**: Ratio of transaction amount to origin balance
-- **balance_change_ratio**: Ratio of balance change to original balance
+*Committed comparison plot. Random Forest and SVM have historical results, but their model files are absent from the current repository. LightGBM has a committed model and confusion matrix, but no row in this CSV. AUC is computed by the evaluation script; the saved CSV does not contain an AUC column.*
 
-## How to Run
+## Run the Streamlit demo
 
-### Step 1: Install Requirements
+Use an isolated Python environment. The original training-library versions are not pinned, so dependency installation alone does not establish compatibility with the serialized artifacts.
 
 ```bash
-pip install -r requirements.txt
+git clone https://github.com/KhuzaimaHassan/Fraud-Detection.git
+cd Fraud-Detection
+python -m pip install -r requirements.txt
+python -m pip install lightgbm pillow
+python -m streamlit run app.py
 ```
 
-### Step 2: Train Models
+LightGBM is needed to load `models/lightgbm.pkl`; the app imports Pillow as `PIL`. These direct dependencies are not explicitly listed in the current `requirements.txt`.
+
+Run commands from the repository root because the app uses relative paths. The prediction/comparison UI requires the saved label encoder and scaler to load successfully. Individual model-load errors are displayed and that model is skipped. If loading fails, recover compatible artifacts and their training environment rather than treating the saved metrics as a new successful run.
+
+The Streamlit path uses the existing models and results; the two evaluation CSV datasets below are not required by `app.py`.
+
+### Committed artifacts
+
+| File | Used by |
+| --- | --- |
+| `models/label_encoder.pkl` | Transaction-type encoding in the app and evaluator |
+| `models/scaler.pkl` | Saved feature scaling in the app and evaluator |
+| `models/logistic_regression.pkl` | App and evaluator |
+| `models/xgboost.pkl` | App and evaluator |
+| `models/lightgbm.pkl` | App and evaluator |
+
+The code also looks for `models/random_forest.pkl`, and the evaluator looks for `models/svm.pkl`. Neither file is committed; missing files are reported and skipped. Model files are loaded through Joblib; use artifacts whose origin you trust.
+
+## Evaluate saved models with your local data
+
+Both datasets must be supplied locally. Their original download sources and the sampled-file construction procedure are not documented in this repository, so exact historical-result reproduction requires recovering that provenance as well as compatible model artifacts.
+
+Place these files **beside `fraud_detection.py`**, not only in a `Datasets/` subdirectory:
+
+```text
+Fraud-Detection/
+├── Fraud.csv                 # Required local input; not committed
+├── FraudData_sampled.csv     # Required local input; not committed
+├── fraud_detection.py
+├── app.py
+├── requirements.txt
+├── setup.py                  # Legacy directory/dataset check
+├── models/                   # Saved encoder, scaler and three classifiers
+└── results/                  # Historical CSV and comparison/confusion plots
+```
+
+Expected fields include:
+
+| Fields | Meaning |
+| --- | --- |
+| `step`, `type`, `amount` | Transaction step, category and amount |
+| `oldbalanceOrg`, `newbalanceOrig` | Origin account balances |
+| `oldbalanceDest`, `newbalanceDest` | Destination account balances |
+| `isFraud` | Binary evaluation target |
+| `nameOrig`, `nameDest` | Account identifiers, dropped when present as expected by the preprocessing code |
+| `isFlaggedFraud` | Optional existing flag, excluded from features when present |
+
+The saved encoder must recognize the transaction categories, and the feature columns must match the saved scaler and classifiers. The app offers CASH_IN, CASH_OUT, DEBIT, PAYMENT and TRANSFER.
 
 ```bash
 python fraud_detection.py
 ```
 
-This script will:
-1. Load and combine both datasets
-2. Apply feature engineering
-3. Preprocess the data (handling categorical variables, scaling)
-4. Balance the classes using SMOTE
-5. Train multiple machine learning models
-6. Generate comprehensive evaluation metrics
-7. Create model explanations using SHAP
-8. Save all results and visualizations
+This command prints accuracy, precision, recall, F1, ROC AUC and classification reports for available models, and writes their confusion-matrix images to `results/`. It does **not** retrain models or refresh `results/model_comparison.csv` and the saved metric-comparison plots; the app continues to read that historical CSV.
 
-### Step 3: Launch the Streamlit App
+`setup.py` creates output directories and checks for datasets under `Datasets/`, which differs from the evaluator's root-relative paths. Its printed instruction calling evaluation “training” is outdated; use the paths and commands above.
 
-```bash
-streamlit run app.py
-```
+## Feature engineering and current limits
 
-This will open a web interface with:
-1. **Model Comparison**: View and compare the performance metrics of different models
-2. **Prediction**: Enter transaction details to predict if a transaction is fraudulent
+Five derived features are implemented: origin balance difference, destination balance difference, a zero-origin-balance flag, an amount-to-origin-balance ratio, and an origin-balance-change ratio.
 
-## Implemented Models
+- **Preprocessing consistency:** `fraud_detection.py` uses `oldbalanceOrg + 1` as the denominator for its ratios; `app.py` uses `oldbalanceOrg + 1e-6`. These produce different values, so the two paths need alignment against the original training pipeline before their predictions and metrics can be compared reliably.
+- **Evaluation provenance:** The script concatenates the full and sampled files before splitting. Their overlap and the saved models' original training data must be checked before claiming an independent, leakage-free test set.
+- **Training and explanations:** SMOTE is imported but never applied. There is no model-fitting or SHAP-generation path in the current evaluator. The app's optional feature-importance chart uses model attributes rather than SHAP.
+- **Reproducibility:** Restore the data sources, sampling recipe, fitted artifacts, feature schema and dependency versions before claiming a reproducible training/evaluation pipeline. No automated test suite or dependency lockfile is committed.
 
-The project implements and compares four machine learning models:
-1. Logistic Regression (baseline)
-2. Random Forest
-3. XGBoost
-4. LightGBM
-
-## Evaluation Metrics
-
-Models are evaluated using:
-- Accuracy
-- Precision
-- Recall
-- F1 Score
-- AUC Score
-- Confusion Matrix
-
-## Model Explainability
-
-The project uses SHAP (SHapley Additive exPlanations) to:
-- Explain model predictions
-- Identify important features
-- Understand feature interactions
-- Generate feature importance plots
-
-## Features
-
-- Combines multiple datasets for comprehensive training
-- Advanced feature engineering for better fraud detection
-- Multiple model support with comprehensive comparison
-- Interactive web interface for easy prediction
-- Detailed model comparison and visualization
-- Model explainability using SHAP
-- Automatic handling of categorical variables
-- Class balancing using SMOTE
-- Model persistence for future use
-
-## Contributing
-
-Feel free to submit issues and enhancement requests! 
+This is an educational classifier demonstration. Its outputs and historical metrics do not establish suitability for live financial decision-making.
